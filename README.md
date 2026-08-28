@@ -256,6 +256,14 @@ Sources/Murmur/
 swift test
 ```
 
+## iOS
+
+Press-to-talk works on iPhone too, and iOS 26 makes it work without the
+compromises other dictation keyboards ship with — no container app kept alive in
+the background, and no collapse to phone-call audio quality on AirPods while you
+talk. The build brief, and the one unverified assumption it rests on, are in
+[docs/ios.md](docs/ios.md). Nothing is built yet.
+
 ## Known limits
 
 - The Fn/Globe key cannot be *suppressed*, only observed, so its system action
