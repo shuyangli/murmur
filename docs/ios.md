@@ -66,6 +66,18 @@ above down to bare `.record` with `.measurement`. All eight failed identically.
 An `AVCaptureSession` against the same microphone also never ran, so this is not
 one API's path — it is a blanket denial of audio input.
 
+`mediaserverd` names the mechanism, captured from this device in Console:
+
+```
+-CMSUtilities- CMSUtility_IsAllowedToStartRecording: Client sid:0x40e3d53,
+MurmurKeyboard(82492), 'prim' with PID 82492 was NOT allowed to start recording
+because it is an extension and doesn't have entitlements to record audio.
+```
+
+The gate is on being an extension, not on the session, the category, or the
+capture API — which is why the session activates and every configuration then
+fails at `kAUStartIO`.
+
 No shipping counterexample survives inspection either. WhisperBoard, cited in
 the sources below, turns out to record in its container app.
 
@@ -77,6 +89,17 @@ refused.
 Do not repeat this measurement without a control run. Three rounds were spent
 narrowing toward an extension-specific cause before checking that the code
 worked anywhere at all.
+
+**This may be a bug rather than policy, and the distinction is unresolved.**
+[Configuring open access](https://developer.apple.com/documentation/uikit/configuring-open-access-for-a-custom-keyboard)
+lists "No access to microphone and speaker" only among the restrictions on a
+keyboard *without* open access, then says an open access keyboard "has all the
+capabilities in the preceding list" and never restates the restriction. In
+[the forum thread](https://developer.apple.com/forums/thread/775077) an Apple
+engineer's first suggestion is to configure open access and indicate dictation
+support — this build does both, verified at runtime, and is still refused. The
+archived App Extension Programming Guide flatly denies microphone access to all
+extensions, but dates that claim to iOS 8.0. FB16791704 tracks the discrepancy.
 
 ## Targets
 
