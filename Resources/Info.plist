@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>Murmur</string>
+    <key>CFBundleIconFile</key>
+    <string>Murmur</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.shuyangli.murmur</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Murmur</string>
+    <key>CFBundleDisplayName</key>
+    <string>Murmur</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Murmur records your voice while you hold the trigger key so it can transcribe it on this Mac. Audio is never saved or sent anywhere.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Murmur uses the on-device recogniser built into macOS when you choose the Apple Speech engine.</string>
+</dict>
+</plist>
