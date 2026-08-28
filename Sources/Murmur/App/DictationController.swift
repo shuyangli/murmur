@@ -135,7 +135,12 @@ final class DictationController: ObservableObject {
 
         guard Permissions.microphoneGranted else {
             showNotice("Microphone access is required.")
-            Task { _ = await AudioRecorder.requestPermission() }
+            Task { [recorder] in
+                guard await AudioRecorder.requestPermission() else { return }
+                // Now that an input device is reachable, build the graph so the
+                // next press starts recording without the setup cost.
+                recorder.warmUp()
+            }
             return
         }
 

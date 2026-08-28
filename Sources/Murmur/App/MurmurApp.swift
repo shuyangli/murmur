@@ -14,7 +14,7 @@ struct MurmurApp: App {
                 .environmentObject(controller)
                 .environmentObject(preferences)
         } label: {
-            MenuBarIcon(state: controller.state, level: controller.level)
+            MenuBarIcon(state: controller.state)
         }
         .menuBarExtraStyle(.window)
 

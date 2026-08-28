@@ -4,7 +4,6 @@ import SwiftUI
 /// at the menu bar always says whether Murmur is listening.
 struct MenuBarIcon: View {
     let state: DictationState
-    let level: Float
 
     var body: some View {
         Image(systemName: symbolName)

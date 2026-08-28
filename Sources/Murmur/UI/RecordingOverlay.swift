@@ -10,6 +10,10 @@ import SwiftUI
 final class RecordingOverlay {
     private var panel: NSPanel?
     private let model = OverlayModel()
+    /// Tracked so the panel is only ordered front on the transition into
+    /// visibility; the level feeds in 30 times a second and re-fronting the
+    /// window at that rate makes it flicker.
+    private var isVisible = false
 
     private static let size = CGSize(width: 188, height: 56)
     /// Distance from the bottom of the active screen's visible frame.
@@ -33,16 +37,20 @@ final class RecordingOverlay {
     }
 
     private func show() {
+        guard !isVisible else { return }
         if panel == nil { panel = makePanel() }
         guard let panel else { return }
         reposition(panel)
         // orderFrontRegardless, never makeKeyAndOrderFront: showing this must
         // not change which app is frontmost.
         panel.orderFrontRegardless()
+        isVisible = true
     }
 
     private func hide() {
+        guard isVisible else { return }
         panel?.orderOut(nil)
+        isVisible = false
     }
 
     private func makePanel() -> NSPanel {

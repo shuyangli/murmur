@@ -26,7 +26,7 @@ struct MenuBarPanel: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                MenuBarIcon(state: controller.state, level: controller.level)
+                MenuBarIcon(state: controller.state)
                 Text(statusTitle).font(.headline)
                 Spacer()
             }
