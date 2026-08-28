@@ -66,6 +66,9 @@ above down to bare `.record` with `.measurement`. All eight failed identically.
 An `AVCaptureSession` against the same microphone also never ran, so this is not
 one API's path — it is a blanket denial of audio input.
 
+No shipping counterexample survives inspection either. WhisperBoard, cited in
+the sources below, turns out to record in its container app.
+
 **The control is what makes this conclusive.** The same `AudioSpike` code,
 compiled into the container app, passes on the first rung: 21 buffers in 2.15 s,
 peak 0.68. Same device, same minute. The spike is correct; the extension is
@@ -184,7 +187,9 @@ onboarding before sending the user to Settings, and make the claim structural:
   same session → transcript to clipboard → you paste. Worse (a paste, and it
   leaves your app) but no Full Access warning and no background app.
 - **Container-app-in-background** is what everyone else ships and what we're
-  trying to avoid. Last resort.
+  trying to avoid. Last resort — and, on the evidence, the only thing that
+  works: WhisperBoard is this design, despite being cited above as the
+  opposite.
 - **`PushToTalk.framework` is the wrong tool** despite the name: needs a channel,
   a remote participant, and APNs `pushtotalk` pushes; can't be joined unless
   foregrounded; from iOS 26 Apple requires genuine PTT apps to use it. Dictation
@@ -211,8 +216,10 @@ onboarding before sending the user to Settings, and make the claim structural:
 - [`bluetoothHighQualityRecording`](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/bluetoothhighqualityrecording)
 - [Forum: error 561145187 recording from a keyboard extension](https://developer.apple.com/forums/thread/775077)
 - [WhisperBoard](https://github.com/fmachta/WhisperBoard) — cited here as
-  proof that in-extension capture works. **Not reproducible.** Its keyboard
-  Info.plist, entitlements, and capture code were replicated exactly, down to
-  `.playAndRecord`/`.default`/`[.defaultToSpeaker]` and an engine built before
-  session configuration; it fails like everything else on iOS 26.6.1. Either
-  iOS 26 changed this, or the claim was never verified on a current OS
+  proof that in-extension capture works. **It does not do that.** Its keyboard
+  extension contains no `AVAudioEngine`, no `installTap` and no `setCategory`;
+  `AudioCapture` lives in a shared source directory compiled into both targets
+  but is instantiated only by the app's `TranscriptionService`. The dictation
+  button posts a Darwin notification, sets `shouldStartRecording`, and shows
+  "Recording in app..." while polling for a result. It is the
+  container-app-in-background design, not a counterexample to it
