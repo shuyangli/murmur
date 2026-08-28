@@ -100,59 +100,6 @@ Three ship today:
 Both NVIDIA models run on the Neural Engine through
 [FluidAudio](https://github.com/FluidInference/FluidAudio).
 
-## History
-
-Every dictation is kept in `~/Library/Application Support/Murmur/history.json`,
-newest first, capped at a number you set in Settings (default 100). It is plain
-JSON and entirely disposable — delete the file any time; the app treats a
-missing or corrupt file as an empty history rather than an error.
-
-Open the window from the menu bar to search, copy, or delete entries.
-
-## Checking on it
-
-```bash
-./dist/Murmur.app/Contents/MacOS/Murmur --diagnose
-```
-
-Prints permissions, the trigger key, the Globe-key conflict check, and where
-history lives. Run from a terminal the permission rows may reflect the
-*terminal's* grants rather than Murmur's, because that is how macOS attributes
-TCC checks to a child process — Settings › Permissions inside the app is
-authoritative.
-
-To exercise the transcription path against a recording:
-
-```bash
-say -o /tmp/speech.wav --data-format=LEF32@16000 "testing one two three"
-./dist/Murmur.app/Contents/MacOS/Murmur --selftest /tmp/speech.wav nemotron
-```
-
-This reports load time, streaming time, flush latency, and the transcript. It
-needs no permissions, which makes it the quickest way to tell a model problem
-apart from a permissions problem.
-
-## Layout
-
-```
-Sources/MurmurCore/   Pure text transforms, unit tested (filler filter, rewrite validator)
-Sources/Murmur/
-├── App/            DictationController — the press-to-talk state machine
-├── Hotkey/         CGEventTap watching for the trigger key
-├── Audio/          AVAudioEngine capture, resampled to 16 kHz mono
-├── Transcription/  The engine protocol, its three implementations, the rewrite pass
-├── Output/         Pasteboard + synthesised ⌘V
-├── History/        JSON-backed log
-├── Support/        Preferences, permissions, login item, logging
-└── UI/             Menu bar, history window, settings, recording overlay
-```
-
-`MurmurCore` exists so the text logic can be tested without launching an app:
-
-```bash
-swift test
-```
-
 ## Cleaning up the text
 
 The ASR models transcribe what you said, fillers included — neither Nemotron
@@ -205,6 +152,59 @@ are dictating into.
 The one exception lives in the menu: if Input Monitoring is off, the trigger key
 is never seen at all, so there is no press that could raise the readout. That
 case gets a menu item.
+
+## History
+
+Every dictation is kept in `~/Library/Application Support/Murmur/history.json`,
+newest first, capped at a number you set in Settings (default 100). It is plain
+JSON and entirely disposable — delete the file any time; the app treats a
+missing or corrupt file as an empty history rather than an error.
+
+Open the window from the menu bar to search, copy, or delete entries.
+
+## Checking on it
+
+```bash
+./dist/Murmur.app/Contents/MacOS/Murmur --diagnose
+```
+
+Prints permissions, the trigger key, the Globe-key conflict check, and where
+history lives. Run from a terminal the permission rows may reflect the
+*terminal's* grants rather than Murmur's, because that is how macOS attributes
+TCC checks to a child process — Settings › Permissions inside the app is
+authoritative.
+
+To exercise the transcription path against a recording:
+
+```bash
+say -o /tmp/speech.wav --data-format=LEF32@16000 "testing one two three"
+./dist/Murmur.app/Contents/MacOS/Murmur --selftest /tmp/speech.wav nemotron
+```
+
+This reports load time, streaming time, flush latency, and the transcript. It
+needs no permissions, which makes it the quickest way to tell a model problem
+apart from a permissions problem.
+
+## Layout
+
+```
+Sources/MurmurCore/   Pure text transforms, unit tested (filler filter, rewrite validator)
+Sources/Murmur/
+├── App/            DictationController — the press-to-talk state machine
+├── Hotkey/         CGEventTap watching for the trigger key
+├── Audio/          AVAudioEngine capture, resampled to 16 kHz mono
+├── Transcription/  The engine protocol, its three implementations, the rewrite pass
+├── Output/         Pasteboard + synthesised ⌘V
+├── History/        JSON-backed log
+├── Support/        Preferences, permissions, login item, logging
+└── UI/             Menu bar, history window, settings, recording overlay
+```
+
+`MurmurCore` exists so the text logic can be tested without launching an app:
+
+```bash
+swift test
+```
 
 ## Known limits
 
