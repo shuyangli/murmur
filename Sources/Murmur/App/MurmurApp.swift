@@ -44,6 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Diagnostics.isRequested {
+            Diagnostics.run()
+        }
         if SelfTest.isRequested {
             Task { await SelfTest.run() }
             return
