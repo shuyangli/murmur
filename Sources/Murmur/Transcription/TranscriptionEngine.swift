@@ -37,6 +37,8 @@ struct EngineDescriptor: Identifiable, Hashable {
     let summary: String
     /// Rough on-disk cost, shown before the user commits to a download.
     let approximateDownload: String
+    /// Whether the engine can show text while the user is still speaking.
+    let providesLiveText: Bool
     let make: @Sendable () -> any TranscriptionEngine
 
     static func == (lhs: EngineDescriptor, rhs: EngineDescriptor) -> Bool { lhs.id == rhs.id }
@@ -68,6 +70,16 @@ protocol TranscriptionEngine: AnyObject, Sendable {
 
     /// Releases models and their memory.
     func unload() async
+
+    /// Installs a handler that receives the transcript so far, while the user
+    /// is still speaking. Each call carries the complete text to date, not a
+    /// delta, so the display can simply be replaced.
+    func setPartialHandler(_ handler: (@Sendable (String) -> Void)?) async
+}
+
+extension TranscriptionEngine {
+    /// Batch engines have nothing to report until the utterance ends.
+    func setPartialHandler(_ handler: (@Sendable (String) -> Void)?) async {}
 }
 
 enum TranscriptionEngineError: LocalizedError {
@@ -92,6 +104,7 @@ enum EngineRegistry {
             name: "NVIDIA Nemotron 3.5 ASR",
             summary: "Streaming 0.6B multilingual model on the Neural Engine. Punctuates and capitalises as it goes.",
             approximateDownload: "~700 MB",
+            providesLiveText: true,
             make: { NemotronEngine() }
         ),
         EngineDescriptor(
@@ -99,6 +112,7 @@ enum EngineRegistry {
             name: "NVIDIA Parakeet TDT v3",
             summary: "Batch 0.6B model. Slightly faster to load, transcribes only after you release the key.",
             approximateDownload: "~650 MB",
+            providesLiveText: false,
             make: { ParakeetEngine() }
         ),
         EngineDescriptor(
@@ -106,6 +120,7 @@ enum EngineRegistry {
             name: "Apple Speech (built in)",
             summary: "Uses the on-device recogniser already installed by macOS. Nothing to download.",
             approximateDownload: "none",
+            providesLiveText: true,
             make: { AppleSpeechEngine() }
         ),
     ]

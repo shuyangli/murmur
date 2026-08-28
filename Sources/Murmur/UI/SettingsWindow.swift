@@ -254,6 +254,35 @@ private struct ModelSettingsTab: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            if preferences.engineID == "nemotron" {
+                Section {
+                    Picker("Update the readout:", selection: Binding(
+                        get: { preferences.nemotronChunkMs },
+                        set: { newValue in
+                            preferences.nemotronChunkMs = newValue
+                            Task { await controller.reloadEngine() }
+                        }
+                    )) {
+                        Text("Every 2.2 seconds").tag(2240)
+                        Text("Every 1.1 seconds").tag(1120)
+                        Text("Every 0.6 seconds").tag(560)
+                    }
+                    Text("Nemotron emits text once per audio chunk, so this sets how often the live readout catches up while you speak. Shorter chunks update more smoothly and cost some throughput. Each setting is a separate model download.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Live Text")
+                }
+            } else if !EngineRegistry.descriptor(for: preferences.engineID).providesLiveText {
+                Section {
+                    Text("This engine only produces text once you release the key, so the readout shows a level meter rather than your words as you speak.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Live Text")
+                }
+            }
+
             Section {
                 LabeledContent("Status:", value: controller.enginePreparation.describedForMenu)
                 if case .downloading(let fraction, _) = controller.enginePreparation {

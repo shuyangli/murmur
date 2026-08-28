@@ -62,9 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // than from SwiftUI, so it can be a non-activating panel that never
         // steals focus from the app being dictated into.
         controller.$state
-            .combineLatest(controller.$level)
-            .sink { [overlay] state, level in
-                overlay.update(state: state, level: level)
+            .combineLatest(controller.$level, controller.$partialTranscript)
+            .sink { [overlay] state, level, partial in
+                overlay.update(state: state, level: level, partial: partial)
             }
             .store(in: &cancellables)
     }

@@ -1,4 +1,5 @@
 import AppKit
+import MurmurCore
 import SwiftUI
 
 /// The floating readout that appears while dictating, and the only place the
@@ -15,41 +16,51 @@ final class RecordingOverlay {
     /// visibility; the level feeds in 30 times a second and re-fronting the
     /// window at that rate makes it flicker.
     private var isVisible = false
+    private var currentLayout: OverlayLayout?
 
-    private static let size = CGSize(width: 300, height: 60)
     /// Distance from the bottom of the active screen's visible frame.
     private static let bottomInset: CGFloat = 96
 
-    func update(state: DictationState, level: Float) {
+    func update(state: DictationState, level: Float, partial: String) {
         model.level = level
+        model.subtitle = SubtitleText.tail(of: partial)
 
         switch state {
         case .recording:
             model.kind = .listening
             model.caption = "Listening"
-            show()
+            show(layout: model.subtitle.isEmpty ? .compact : .subtitle)
         case .transcribing:
             model.kind = .working
             model.caption = "Transcribing"
-            show()
+            show(layout: model.subtitle.isEmpty ? .compact : .subtitle)
         case .notice(let message):
             model.kind = .message(isProblem: false)
             model.caption = message
-            show()
+            model.subtitle = ""
+            show(layout: .message)
         case .failure(let message):
             model.kind = .message(isProblem: true)
             model.caption = message
-            show()
+            model.subtitle = ""
+            show(layout: .message)
         case .idle:
             hide()
         }
     }
 
-    private func show() {
-        guard !isVisible else { return }
+    private func show(layout: OverlayLayout) {
         if panel == nil { panel = makePanel() }
         guard let panel else { return }
-        reposition(panel)
+
+        // Resize whenever the layout changes, including mid-utterance as the
+        // first words arrive and the readout grows into a subtitle.
+        if layout != currentLayout {
+            currentLayout = layout
+            reposition(panel, for: layout)
+        }
+
+        guard !isVisible else { return }
         // orderFrontRegardless, never makeKeyAndOrderFront: showing this must
         // not change which app is frontmost.
         panel.orderFrontRegardless()
@@ -60,11 +71,12 @@ final class RecordingOverlay {
         guard isVisible else { return }
         panel?.orderOut(nil)
         isVisible = false
+        currentLayout = nil
     }
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: Self.size),
+            contentRect: NSRect(origin: .zero, size: OverlayLayout.compact.size),
             styleMask: [.nonactivatingPanel, .borderless, .utilityWindow],
             backing: .buffered,
             defer: false
@@ -83,14 +95,37 @@ final class RecordingOverlay {
         return panel
     }
 
-    private func reposition(_ panel: NSPanel) {
+    private func reposition(_ panel: NSPanel, for layout: OverlayLayout) {
         let screen = NSScreen.main ?? NSScreen.screens.first
         guard let frame = screen?.visibleFrame else { return }
+        let size = layout.size
+        // Pinned by its top edge, so growing into subtitle mode extends the
+        // panel downward and the mic and meter stay exactly where the eye
+        // already found them. Anchoring the bottom instead would shove the
+        // whole header upward the moment the first words arrived.
+        let anchorTop = frame.minY + Self.bottomInset + OverlayLayout.compact.size.height
         let origin = CGPoint(
-            x: frame.midX - Self.size.width / 2,
-            y: frame.minY + Self.bottomInset
+            x: frame.midX - size.width / 2,
+            y: anchorTop - size.height
         )
-        panel.setFrame(NSRect(origin: origin, size: Self.size), display: false)
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+    }
+}
+
+/// The readout has a small number of fixed shapes rather than sizing itself to
+/// its content: an explicit `setFrame` is predictable, where relying on SwiftUI
+/// intrinsic sizing to drive a borderless panel is not.
+enum OverlayLayout: Equatable {
+    case compact
+    case subtitle
+    case message
+
+    var size: CGSize {
+        switch self {
+        case .compact: return CGSize(width: 300, height: 60)
+        case .subtitle: return CGSize(width: 460, height: 124)
+        case .message: return CGSize(width: 360, height: 68)
+        }
     }
 }
 
@@ -104,6 +139,7 @@ enum OverlayKind: Equatable {
 private final class OverlayModel: ObservableObject {
     @Published var level: Float = 0
     @Published var caption: String = "Listening"
+    @Published var subtitle: String = ""
     @Published var kind: OverlayKind = .listening
 }
 
@@ -113,31 +149,53 @@ private struct OverlayView: View {
     private static let barCount = 14
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            if !model.subtitle.isEmpty {
+                Text(model.subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Words arrive a chunk at a time, so ease them in rather
+                    // than having the block snap to a new size.
+                    .animation(.easeOut(duration: 0.15), value: model.subtitle)
+                    .transition(.opacity)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
+        )
+    }
+
+    private var header: some View {
         HStack(spacing: 10) {
             Image(systemName: symbolName)
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(symbolColor)
                 .frame(width: 18)
 
-            VStack(alignment: .leading, spacing: 5) {
+            if isMessage {
                 Text(model.caption)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(isMessage ? .primary : .secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                if !isMessage {
-                    meter
-                }
+            } else {
+                Text(model.caption)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                meter
             }
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08))
-        )
     }
 
     private var isMessage: Bool {

@@ -2,6 +2,24 @@ import AVFoundation
 import FluidAudio
 import Foundation
 
+/// Counts partial callbacks arriving from an engine's own executor.
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+}
+
 /// Exercises the real transcription path from a wav file, so the engine and
 /// audio plumbing can be verified without granting Accessibility or Input
 /// Monitoring first.
@@ -69,6 +87,16 @@ enum SelfTest {
             }
             emit("load:     \(String(format: "%.2f", Date().timeIntervalSince(loadStart)))s")
 
+            // Report the live partials too, so their cadence can be judged:
+            // they drive the on-screen subtitle while the user is speaking.
+            let partialClock = Date()
+            let partialCount = Counter()
+            await engine.setPartialHandler { text in
+                let elapsed = Date().timeIntervalSince(partialClock)
+                partialCount.increment()
+                emit("  partial +\(String(format: "%.2f", elapsed))s  \(text)")
+            }
+
             try await engine.beginUtterance(language: language)
 
             // Feed in microphone-sized chunks, timing only the flush so the
@@ -87,6 +115,7 @@ enum SelfTest {
             let text = try await engine.finishUtterance()
             let flushElapsed = Date().timeIntervalSince(flushStart)
 
+            emit("partials: \(partialCount.value) update(s) during the utterance")
             emit("stream:   \(String(format: "%.2f", feedElapsed))s while speaking")
             emit("flush:    \(String(format: "%.2f", flushElapsed))s after key release")
             emit("rtfx:     \(String(format: "%.1f", duration / max(feedElapsed + flushElapsed, 0.0001)))x")

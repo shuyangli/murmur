@@ -21,6 +21,8 @@ final class DictationController: ObservableObject {
     @Published private(set) var enginePreparation: EnginePreparation = .idle
     @Published private(set) var hotkeyActive = false
     @Published private(set) var level: Float = 0
+    /// The transcript so far, updated while the user is still speaking.
+    @Published private(set) var partialTranscript = ""
 
     static let shared = DictationController()
 
@@ -100,6 +102,9 @@ final class DictationController: ObservableObject {
         do {
             try await engine.prepare { [weak self] progress in
                 Task { @MainActor in self?.enginePreparation = progress }
+            }
+            await engine.setPartialHandler { [weak self] text in
+                Task { @MainActor in self?.receivePartial(text) }
             }
         } catch {
             enginePreparation = .failed(error.localizedDescription)
@@ -193,6 +198,7 @@ final class DictationController: ObservableObject {
         }
 
         recordingStartedAt = Date()
+        partialTranscript = ""
         state = .recording
         startLevelPolling()
         playSound(.start)
@@ -252,6 +258,7 @@ final class DictationController: ObservableObject {
                     targetApplication: target
                 ))
 
+                partialTranscript = ""
                 state = .idle
                 playSound(.success)
                 Log.asr.info("Transcribed \(duration, format: .fixed(precision: 1))s in \(elapsed, format: .fixed(precision: 2))s")
@@ -291,6 +298,11 @@ final class DictationController: ObservableObject {
         let polisher = self.polisher ?? TextPolisher()
         self.polisher = polisher
         return await polisher.polish(text)
+    }
+
+    private func receivePartial(_ text: String) {
+        guard state == .recording || state == .transcribing else { return }
+        partialTranscript = text
     }
 
     private func discardUtterance() {

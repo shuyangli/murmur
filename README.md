@@ -93,8 +93,8 @@ Three ship today:
 
 | Engine | Notes | Measured on an M1 Pro |
 | --- | --- | --- |
-| **Nemotron 3.5 ASR** (default) | Streaming, 0.6B, 40 languages, punctuates as it goes | 0.07 s flush after key release |
-| **Parakeet TDT v3** | Batch, 0.6B, 25 languages | 0.14 s after key release |
+| **Nemotron 3.5 ASR** (default) | Streaming, 0.6B, 40 languages, punctuates as it goes, live text | 0.07 s flush after key release |
+| **Parakeet TDT v3** | Batch, 0.6B, 25 languages. No live text | 0.14 s after key release |
 | **Apple Speech** | Built into macOS, nothing to download | Varies; weakest punctuation |
 
 Both NVIDIA models run on the Neural Engine through
@@ -144,10 +144,30 @@ quit. It carries no status or progress, because nobody watches the menu bar
 while they wait for something.
 
 Everything time-sensitive goes to the floating readout above the Dock instead:
-the level meter while you speak, "Transcribing", and any reason a press did not
-work ("Downloading the speech model — 62%", "Microphone access is required").
-That panel is non-activating, so it never takes keyboard focus from the app you
-are dictating into.
+your words as you say them, the level meter, "Transcribing", and any reason a
+press did not work ("Downloading the speech model — 62%", "Microphone access is
+required"). That panel is non-activating, so it never takes keyboard focus from
+the app you are dictating into.
+
+### Live text
+
+Nemotron reports a transcript after every audio chunk it decodes, each one
+carrying the full text so far, so the readout can simply be replaced as you
+speak. It starts as a compact meter and grows into a subtitle once the first
+words land — pinned by its top edge, so the mic and meter stay where your eye
+already found them instead of jumping.
+
+Long dictation is trimmed to the most recent words rather than the first ones
+([`SubtitleText`](Sources/MurmurCore/SubtitleText.swift)); what you are saying
+now is what you want to see.
+
+Updates arrive once per chunk, which is every 2.2 s by default. **Settings ›
+Model › Live Text** trades that against throughput — 1.1 s or 0.6 s update far
+more smoothly, at the cost of a separate model download for each tier.
+
+Apple Speech reports partials too. Parakeet does not: it is a batch model that
+produces nothing until you release the key, so with it the readout stays a
+level meter.
 
 The one exception lives in the menu: if Input Monitoring is off, the trigger key
 is never seen at all, so there is no press that could raise the readout. That

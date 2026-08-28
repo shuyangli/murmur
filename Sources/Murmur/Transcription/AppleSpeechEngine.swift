@@ -22,6 +22,7 @@ actor AppleSpeechEngine: TranscriptionEngine {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var latestTranscript = ""
+    private var partialHandler: (@Sendable (String) -> Void)?
     private var preparation: EnginePreparation = .idle
 
     func prepare(progress: @escaping @Sendable (EnginePreparation) -> Void) async throws {
@@ -87,8 +88,14 @@ actor AppleSpeechEngine: TranscriptionEngine {
         }
     }
 
+    func setPartialHandler(_ handler: (@Sendable (String) -> Void)?) async {
+        partialHandler = handler
+    }
+
     private func updateTranscript(_ text: String) {
+        guard text != latestTranscript else { return }
         latestTranscript = text
+        partialHandler?(text)
     }
 
     func feed(_ samples: [Float]) async throws {

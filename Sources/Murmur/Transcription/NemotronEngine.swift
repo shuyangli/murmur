@@ -9,14 +9,11 @@ import Foundation
 actor NemotronEngine: TranscriptionEngine {
     static let id = "nemotron"
 
-    /// 2.24 s chunks: NVIDIA's recommended tier, highest throughput and
-    /// WER-neutral against the 1.12 s tier the model was trained at.
-    private static let chunkMilliseconds = 2240
-
     private var manager: StreamingNemotronMultilingualAsrManager?
     private var preparation: EnginePreparation = .idle
     private var preparationTask: Task<Void, Error>?
     private var activeLanguage: String?
+    private var partialHandler: (@Sendable (String) -> Void)?
 
     func prepare(progress: @escaping @Sendable (EnginePreparation) -> Void) async throws {
         if preparation.isReady { progress(.ready); return }
@@ -54,7 +51,7 @@ actor NemotronEngine: TranscriptionEngine {
 
         let directory = try await StreamingNemotronMultilingualAsrManager.downloadVariant(
             languageCode: language,
-            chunkMs: Self.chunkMilliseconds,
+            chunkMs: Preferences.shared.nemotronChunkMs,
             progressHandler: { update in
                 progress(.downloading(fraction: update.fractionCompleted, detail: update.phase.readableDescription))
             }
@@ -67,11 +64,27 @@ actor NemotronEngine: TranscriptionEngine {
         try await manager.loadModels(from: directory)
         await manager.setLanguage(language)
 
+        if let partialHandler {
+            await manager.setPartialCallback { text in
+                partialHandler(text)
+            }
+        }
+
         self.manager = manager
         self.activeLanguage = language
         preparation = .ready
         progress(preparation)
         Log.asr.info("Nemotron ready (\(language, privacy: .public))")
+    }
+
+    func setPartialHandler(_ handler: (@Sendable (String) -> Void)?) async {
+        partialHandler = handler
+        guard let manager else { return }
+        // The manager decodes every accumulated token on each call, so the
+        // handler always receives the full transcript so far.
+        await manager.setPartialCallback { text in
+            handler?(text)
+        }
     }
 
     func beginUtterance(language: String) async throws {

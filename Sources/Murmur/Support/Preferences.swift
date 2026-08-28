@@ -37,11 +37,17 @@ final class Preferences: ObservableObject {
         static let removeFillers = "removeFillers"
         static let removeDiscourseMarkers = "removeDiscourseMarkers"
         static let polishWithLanguageModel = "polishWithLanguageModel"
+        static let nemotronChunkMs = "nemotronChunkMs"
     }
 
     /// Below this, a key press is treated as a stray tap rather than dictation.
     static let defaultMinimumRecordingSeconds = 0.35
     static let defaultHistoryLimit = 100
+    /// NVIDIA's recommended tier: highest throughput, and WER-neutral
+    /// against the 1120 ms chunk the model was actually trained at.
+    static let defaultNemotronChunkMs = 2240
+    /// Tiers Nemotron ships CoreML bundles for. Each is a separate download.
+    static let nemotronChunkChoices = [2240, 1120, 560]
     static let historyLimitRange = 10...1000
 
     private let defaults: UserDefaults
@@ -61,6 +67,7 @@ final class Preferences: ObservableObject {
             Key.removeFillers: true,
             Key.removeDiscourseMarkers: false,
             Key.polishWithLanguageModel: false,
+            Key.nemotronChunkMs: Self.defaultNemotronChunkMs,
         ])
     }
 
@@ -140,5 +147,15 @@ final class Preferences: ObservableObject {
     var polishWithLanguageModel: Bool {
         get { defaults.bool(forKey: Key.polishWithLanguageModel) }
         set { set(newValue, forKey: Key.polishWithLanguageModel) }
+    }
+
+    /// Audio chunk Nemotron decodes at, in milliseconds. Also the interval at
+    /// which the live subtitle updates, since a partial is emitted per chunk.
+    var nemotronChunkMs: Int {
+        get {
+            let stored = defaults.integer(forKey: Key.nemotronChunkMs)
+            return Self.nemotronChunkChoices.contains(stored) ? stored : Self.defaultNemotronChunkMs
+        }
+        set { set(newValue, forKey: Key.nemotronChunkMs) }
     }
 }
