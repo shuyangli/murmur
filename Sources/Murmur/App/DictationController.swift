@@ -57,6 +57,7 @@ final class DictationController: ObservableObject {
     // MARK: - Lifecycle
 
     func start() {
+        recorder.warmUp()
         hotkeyActive = monitor.start()
         if !hotkeyActive {
             state = .failure("Input Monitoring permission is needed to see the trigger key.")

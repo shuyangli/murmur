@@ -33,6 +33,7 @@ final class AudioRecorder: @unchecked Sendable {
     private let lock = NSLock()
 
     private var isRecording = false
+    private var graphPrepared = false
     private var onSamples: (@Sendable ([Float]) -> Void)?
     /// Running peak level in 0...1, for the recording indicator.
     private var currentLevel: Float = 0
@@ -41,10 +42,23 @@ final class AudioRecorder: @unchecked Sendable {
     /// the engine fed without waking the audio thread excessively.
     private static let tapBufferSize: AVAudioFrameCount = 4096
 
-    init() {
-        // Building the render graph up front makes the eventual start() fast,
-        // which matters because recording begins on a key press.
+    /// Builds the render graph so the eventual `start()` is fast, which matters
+    /// because recording begins on a key press.
+    ///
+    /// Deliberately not done in `init`: `AVAudioEngine.prepare()` raises an
+    /// Objective-C exception when the graph is still empty, and touching
+    /// `inputNode` to populate it is only safe once an input device exists and
+    /// microphone access has been granted.
+    func warmUp() {
+        guard !graphPrepared, Self.permissionGranted, Self.hasInputDevice else { return }
+        let format = engine.inputNode.inputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { return }
         engine.prepare()
+        graphPrepared = true
+    }
+
+    private static var hasInputDevice: Bool {
+        AVCaptureDevice.default(for: .audio) != nil
     }
 
     static func requestPermission() async -> Bool {
@@ -97,6 +111,7 @@ final class AudioRecorder: @unchecked Sendable {
 
         do {
             try engine.start()
+            graphPrepared = true
         } catch {
             input.removeTap(onBus: 0)
             reset()
@@ -115,7 +130,8 @@ final class AudioRecorder: @unchecked Sendable {
 
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        // Keep the graph warm for the next press.
+        // The graph still holds its input node here, so re-preparing is safe
+        // and keeps the next press fast.
         engine.prepare()
     }
 
