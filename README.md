@@ -161,6 +161,18 @@ Long dictation is trimmed to the most recent words rather than the first ones
 ([`SubtitleText`](Sources/MurmurCore/SubtitleText.swift)); what you are saying
 now is what you want to see.
 
+The readout wraps the transcript itself and shows the last three lines, rather
+than trimming to a character budget. Trimming by characters looked unsteady:
+every new word moved where the visible text began, so all three lines re-wrapped
+on each update. Wrapping the whole transcript and keeping the last lines means
+earlier lines never change — greedy wrapping depends only on the text before it
+— so the block scrolls up exactly one whole line at a time. The lines are
+measured against the same font the panel draws with, in
+[`OverlayMetrics`](Sources/Murmur/UI/OverlayMetrics.swift), and drawn one per
+`Text` with wrapping off so SwiftUI cannot break them somewhere else. The text
+block always reserves its full height, so filling from one line to three does
+not resize the panel either.
+
 Updates arrive once per chunk, which is every 2.2 s by default. **Settings ›
 Model › Live Text** trades that against throughput — 1.1 s or 0.6 s update far
 more smoothly, at the cost of a separate model download for each tier.
@@ -172,6 +184,24 @@ level meter.
 The one exception lives in the menu: if Input Monitoring is off, the trigger key
 is never seen at all, so there is no press that could raise the readout. That
 case gets a menu item.
+
+## Disk space
+
+Models are large and they accumulate: each Nemotron language and update-rate
+tier is a separate download, so trying two update rates leaves two full copies
+on disk.
+
+**Settings › Model › Downloaded Models** lists what is actually there, each with
+its real size on disk and a delete button, plus a running total. The one the
+current settings would load is marked **In use** — matched by vocabulary and
+chunk tier, not just by engine, so the tier you are not using is plainly
+removable. Deleting the in-use model releases the engine first, because CoreML
+keeps a loaded model's files mapped; it downloads again the next time you need
+it.
+
+The list is rescanned from disk rather than tracked as downloads happen, since
+the cache belongs to FluidAudio and Murmur is not its only writer.
+`--diagnose` prints the same inventory.
 
 ## History
 

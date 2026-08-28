@@ -23,26 +23,26 @@ final class RecordingOverlay {
 
     func update(state: DictationState, level: Float, partial: String) {
         model.level = level
-        model.subtitle = SubtitleText.tail(of: partial)
+        model.subtitleLines = OverlayMetrics.layOutSubtitle(partial)
 
         switch state {
         case .recording:
             model.kind = .listening
             model.caption = "Listening"
-            show(layout: model.subtitle.isEmpty ? .compact : .subtitle)
+            show(layout: model.subtitleLines.isEmpty ? .compact : .subtitle)
         case .transcribing:
             model.kind = .working
             model.caption = "Transcribing"
-            show(layout: model.subtitle.isEmpty ? .compact : .subtitle)
+            show(layout: model.subtitleLines.isEmpty ? .compact : .subtitle)
         case .notice(let message):
             model.kind = .message(isProblem: false)
             model.caption = message
-            model.subtitle = ""
+            model.subtitleLines = []
             show(layout: .message)
         case .failure(let message):
             model.kind = .message(isProblem: true)
             model.caption = message
-            model.subtitle = ""
+            model.subtitleLines = []
             show(layout: .message)
         case .idle:
             hide()
@@ -115,6 +115,7 @@ final class RecordingOverlay {
 /// The readout has a small number of fixed shapes rather than sizing itself to
 /// its content: an explicit `setFrame` is predictable, where relying on SwiftUI
 /// intrinsic sizing to drive a borderless panel is not.
+@MainActor
 enum OverlayLayout: Equatable {
     case compact
     case subtitle
@@ -123,7 +124,8 @@ enum OverlayLayout: Equatable {
     var size: CGSize {
         switch self {
         case .compact: return CGSize(width: 300, height: 60)
-        case .subtitle: return CGSize(width: 460, height: 124)
+        case .subtitle:
+            return CGSize(width: OverlayMetrics.subtitleWidth, height: OverlayMetrics.subtitleHeight)
         case .message: return CGSize(width: 360, height: 68)
         }
     }
@@ -139,7 +141,7 @@ enum OverlayKind: Equatable {
 private final class OverlayModel: ObservableObject {
     @Published var level: Float = 0
     @Published var caption: String = "Listening"
-    @Published var subtitle: String = ""
+    @Published var subtitleLines: [String] = []
     @Published var kind: OverlayKind = .listening
 }
 
@@ -151,18 +153,8 @@ private struct OverlayView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            if !model.subtitle.isEmpty {
-                Text(model.subtitle)
-                    .font(.callout)
-                    .foregroundStyle(.primary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Words arrive a chunk at a time, so ease them in rather
-                    // than having the block snap to a new size.
-                    .animation(.easeOut(duration: 0.15), value: model.subtitle)
-                    .transition(.opacity)
+            if !model.subtitleLines.isEmpty {
+                subtitleBlock
             }
             Spacer(minLength: 0)
         }
@@ -173,6 +165,30 @@ private struct OverlayView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08))
+        )
+    }
+
+    /// Each line is drawn on its own, already wrapped, with wrapping disabled.
+    /// Letting SwiftUI re-wrap the joined text would undo the line-stable
+    /// layout, because its break points and ours would not agree exactly.
+    ///
+    /// The block reserves its full height whether or not the lines are there
+    /// yet, so filling from one line to three does not resize the panel.
+    private var subtitleBlock: some View {
+        VStack(alignment: .leading, spacing: OverlayMetrics.lineSpacing) {
+            ForEach(Array(model.subtitleLines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .frame(
+            maxWidth: .infinity,
+            minHeight: OverlayMetrics.subtitleBlockHeight,
+            maxHeight: OverlayMetrics.subtitleBlockHeight,
+            alignment: .topLeading
         )
     }
 

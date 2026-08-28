@@ -39,6 +39,9 @@ struct EngineDescriptor: Identifiable, Hashable {
     let approximateDownload: String
     /// Whether the engine can show text while the user is still speaking.
     let providesLiveText: Bool
+    /// Prefix of the directory this engine's files occupy in the shared model
+    /// cache, or nil when the engine downloads nothing.
+    let cacheDirectoryPrefix: String?
     let make: @Sendable () -> any TranscriptionEngine
 
     static func == (lhs: EngineDescriptor, rhs: EngineDescriptor) -> Bool { lhs.id == rhs.id }
@@ -105,6 +108,7 @@ enum EngineRegistry {
             summary: "Streaming 0.6B multilingual model on the Neural Engine. Punctuates and capitalises as it goes.",
             approximateDownload: "~700 MB",
             providesLiveText: true,
+            cacheDirectoryPrefix: "nemotron",
             make: { NemotronEngine() }
         ),
         EngineDescriptor(
@@ -113,6 +117,7 @@ enum EngineRegistry {
             summary: "Batch 0.6B model. Slightly faster to load, transcribes only after you release the key.",
             approximateDownload: "~650 MB",
             providesLiveText: false,
+            cacheDirectoryPrefix: "parakeet",
             make: { ParakeetEngine() }
         ),
         EngineDescriptor(
@@ -121,6 +126,7 @@ enum EngineRegistry {
             summary: "Uses the on-device recogniser already installed by macOS. Nothing to download.",
             approximateDownload: "none",
             providesLiveText: true,
+            cacheDirectoryPrefix: nil,
             make: { AppleSpeechEngine() }
         ),
     ]

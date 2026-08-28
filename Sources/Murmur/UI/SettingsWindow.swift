@@ -199,6 +199,8 @@ private struct TextSettingsTab: View {
 private struct ModelSettingsTab: View {
     @EnvironmentObject private var controller: DictationController
     @EnvironmentObject private var preferences: Preferences
+    @StateObject private var inventory = ModelInventory()
+    @State private var pendingDeletion: InstalledModel?
 
     /// Languages Nemotron ships a vocabulary-pruned build for, plus auto.
     private static let languages: [(code: String, name: String)] = [
@@ -284,6 +286,36 @@ private struct ModelSettingsTab: View {
             }
 
             Section {
+                if inventory.models.isEmpty {
+                    Text(inventory.isScanning ? "Looking…" : "Nothing downloaded yet.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach(inventory.models) { model in
+                        InstalledModelRow(
+                            model: model,
+                            isInUse: isInUse(model),
+                            onDelete: { pendingDeletion = model }
+                        )
+                    }
+                    LabeledContent("Total on disk:", value: inventory.formattedTotal)
+                        .font(.caption)
+                }
+
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.selectFile(
+                        nil,
+                        inFileViewerRootedAtPath: ModelInventory.cacheDirectory.path
+                    )
+                }
+                .font(.caption)
+            } header: {
+                Text("Downloaded Models")
+            } footer: {
+                Text("Deleting a model frees the space immediately. It downloads again the next time you use that engine, language, or update rate.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
                 LabeledContent("Status:", value: controller.enginePreparation.describedForMenu)
                 if case .downloading(let fraction, _) = controller.enginePreparation {
                     ProgressView(value: fraction)
@@ -297,6 +329,88 @@ private struct ModelSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .task { inventory.refresh() }
+        .onChange(of: controller.enginePreparation) { _, newValue in
+            if newValue.isReady { inventory.refresh() }
+        }
+        .confirmationDialog(
+            "Delete \(pendingDeletion?.displayName ?? "this model")?",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let model = pendingDeletion { delete(model) }
+                pendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDeletion = nil }
+        } message: {
+            if let model = pendingDeletion {
+                Text("This frees \(model.formattedSize). Murmur downloads it again the next time it is needed.")
+            }
+        }
+    }
+
+    private func isInUse(_ model: InstalledModel) -> Bool {
+        model.isInUse(
+            descriptor: EngineRegistry.descriptor(for: preferences.engineID),
+            language: preferences.language,
+            chunkMilliseconds: preferences.nemotronChunkMs
+        )
+    }
+
+    private func delete(_ model: InstalledModel) {
+        guard isInUse(model) else {
+            // A build that is not loaded has no files mapped, so it can go
+            // without disturbing the running engine.
+            inventory.delete(model)
+            return
+        }
+        // CoreML keeps a loaded model's files mapped, so the engine has to let
+        // go before the directory can be removed.
+        Task {
+            await controller.releaseEngine()
+            inventory.delete(model)
+        }
+    }
+}
+
+private struct InstalledModelRow: View {
+    let model: InstalledModel
+    let isInUse: Bool
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.displayName)
+                if let variant = model.displayVariant {
+                    Text(variant).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+
+            if isInUse {
+                Text("In use")
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.15), in: Capsule())
+            }
+
+            Text(model.formattedSize)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("Delete this download")
+        }
+        .padding(.vertical, 2)
     }
 }
 

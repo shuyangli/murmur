@@ -91,6 +91,18 @@ final class DictationController: ObservableObject {
         await prepareEngine()
     }
 
+    /// Unloads the current engine without downloading it again.
+    ///
+    /// Needed before deleting a model: CoreML keeps the compiled files mapped
+    /// while a model is loaded, and the next key press re-prepares anyway.
+    func releaseEngine() async {
+        let previous = engine
+        engine = nil
+        loadedEngineID = nil
+        enginePreparation = .idle
+        await previous?.unload()
+    }
+
     func prepareEngine() async {
         let descriptor = EngineRegistry.descriptor(for: preferences.engineID)
         if loadedEngineID == descriptor.id, enginePreparation.isReady { return }

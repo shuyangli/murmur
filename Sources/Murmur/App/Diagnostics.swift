@@ -57,6 +57,27 @@ enum Diagnostics {
         print("")
         print("Open at login:    \(loginItemDescription)")
 
+        print("")
+        let models = ModelInventory.scan(root: ModelInventory.cacheDirectory)
+        if models.isEmpty {
+            print("Models:           none downloaded")
+        } else {
+            print("Models:           \(ModelInventory.cacheDirectory.path)")
+            var total: Int64 = 0
+            for model in models {
+                total += model.byteCount
+                let name = [model.displayName, model.displayVariant]
+                    .compactMap { $0 }
+                    .joined(separator: " — ")
+                print("  \(model.formattedSize.padding(toLength: 10, withPad: " ", startingAt: 0)) \(name)")
+            }
+            let formatter = ByteCountFormatter()
+            formatter.allowedUnits = [.useMB, .useGB]
+            formatter.countStyle = .file
+            print("  \(formatter.string(fromByteCount: total).padding(toLength: 10, withPad: " ", startingAt: 0)) total")
+        }
+
+        print("")
         let historyURL = AppPaths.supportDirectory.appendingPathComponent("history.json")
         let entryCount = (try? Data(contentsOf: historyURL))
             .flatMap { try? JSONDecoder.murmur.decode([HistoryEntry].self, from: $0) }?.count ?? 0

@@ -2,54 +2,114 @@ import Testing
 
 @testable import MurmurCore
 
-@Suite("Subtitle trimming")
+@Suite("Subtitle layout")
 struct SubtitleTextTests {
 
-    @Test("Leaves short text untouched")
-    func leavesShortTextAlone() {
-        #expect(SubtitleText.tail(of: "hello world", limit: 40) == "hello world")
+    @Test("Keeps short text on a single line")
+    func singleLine() {
+        #expect(
+            SubtitleText.visibleLines(of: "hello world", charactersPerLine: 40)
+                == ["hello world"]
+        )
     }
 
-    @Test("Keeps the end of a long transcript")
-    func keepsTheEnd() {
-        let text = "one two three four five six seven eight nine ten eleven twelve"
-        let result = SubtitleText.tail(of: text, limit: 20)
-        #expect(result.hasSuffix("twelve"))
-        #expect(!result.contains("one two"))
+    @Test("Wraps greedily at the given width")
+    func wrapsGreedily() {
+        let lines = SubtitleText.visibleLines(
+            of: "alpha bravo charlie delta",
+            maxLines: 10,
+            charactersPerLine: 12
+        )
+        #expect(lines == ["alpha bravo", "charlie", "delta"])
     }
 
-    @Test("Opens at a word boundary, never mid-word")
-    func opensOnAWord() {
-        let text = "alpha bravo charlie delta echo foxtrot golf hotel india juliet"
-        let result = SubtitleText.tail(of: text, limit: 20)
-        // Drop the leading ellipsis, then the first token must be a whole word.
-        let firstWord = result.dropFirst().split(separator: " ").first.map(String.init)
-        #expect(firstWord != nil)
-        #expect(text.split(separator: " ").map(String.init).contains(firstWord!))
+    @Test("Shows only the last few lines")
+    func keepsTheLastLines() {
+        let lines = SubtitleText.visibleLines(
+            of: "one two three four five six seven eight nine ten",
+            maxLines: 2,
+            charactersPerLine: 9
+        )
+        #expect(lines.count == 2)
+        #expect(lines.last!.contains("ten"))
     }
 
-    @Test("Marks that earlier words were dropped")
-    func marksTruncation() {
-        let text = String(repeating: "word ", count: 100)
-        #expect(SubtitleText.tail(of: text, limit: 30).hasPrefix("…"))
+    /// The point of the whole exercise: as words arrive, the lines already on
+    /// screen must not re-flow. Only the newest line may change, and the block
+    /// may scroll by exactly one line.
+    @Test("Earlier lines never change as more words arrive")
+    func earlierLinesAreStable() {
+        let words = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima"
+            .split(separator: " ").map(String.init)
+
+        var allLineSets: [[String]] = []
+        for count in 1...words.count {
+            let text = words.prefix(count).joined(separator: " ")
+            allLineSets.append(
+                SubtitleText.visibleLines(of: text, maxLines: 100, charactersPerLine: 13)
+            )
+        }
+
+        // Every snapshot must be a prefix-compatible extension of the last:
+        // all completed lines are identical, only the final line grows.
+        for (previous, current) in zip(allLineSets, allLineSets.dropFirst()) {
+            let settled = previous.dropLast()
+            #expect(Array(current.prefix(settled.count)) == Array(settled))
+        }
     }
 
-    @Test("Flattens newlines so the readout stays on its own lines")
+    @Test("Scrolls by exactly one line when the window overflows")
+    func scrollsOneLineAtATime() {
+        let width = 13
+        let before = SubtitleText.visibleLines(
+            of: "alpha bravo charlie delta echo foxtrot",
+            maxLines: 2,
+            charactersPerLine: width
+        )
+        let after = SubtitleText.visibleLines(
+            of: "alpha bravo charlie delta echo foxtrot golf hotel india",
+            maxLines: 2,
+            charactersPerLine: width
+        )
+        // Nothing partially re-wrapped: the new view still consists of whole
+        // lines drawn from the same wrapping of the same text.
+        let full = SubtitleText.visibleLines(
+            of: "alpha bravo charlie delta echo foxtrot golf hotel india",
+            maxLines: 100,
+            charactersPerLine: width
+        )
+        #expect(after == Array(full.suffix(2)))
+        #expect(before.count == 2)
+    }
+
+    @Test("Puts an over-long word on its own line rather than dropping it")
+    func handlesUnbreakableWord() {
+        let long = String(repeating: "x", count: 40)
+        let lines = SubtitleText.visibleLines(
+            of: "short \(long) tail",
+            maxLines: 10,
+            charactersPerLine: 10
+        )
+        #expect(lines.contains(long))
+        #expect(lines.last == "tail")
+    }
+
+    @Test("Flattens newlines into the flow")
     func flattensNewlines() {
-        #expect(SubtitleText.tail(of: "first\nsecond", limit: 40) == "first second")
+        #expect(
+            SubtitleText.visibleLines(of: "first\nsecond", charactersPerLine: 40)
+                == ["first second"]
+        )
     }
 
-    @Test("Handles empty and whitespace-only input")
+    @Test("Returns nothing for empty input")
     func handlesEmpty() {
-        #expect(SubtitleText.tail(of: "") == "")
-        #expect(SubtitleText.tail(of: "   \n  ") == "")
+        #expect(SubtitleText.visibleLines(of: "", charactersPerLine: 40).isEmpty)
+        #expect(SubtitleText.visibleLines(of: "   \n ", charactersPerLine: 40).isEmpty)
     }
 
-    @Test("Still honours the limit when there is no word boundary to cut on")
-    func handlesUnbrokenText() {
-        // One very long token has no space to break at. Cutting mid-word is
-        // ugly, but it is the only option that still fits the panel.
-        let text = String(repeating: "x", count: 60)
-        #expect(SubtitleText.tail(of: text, limit: 20) == "…" + String(repeating: "x", count: 20))
+    @Test("Returns nothing when asked for no lines")
+    func handlesZeroLines() {
+        #expect(SubtitleText.visibleLines(of: "words here", maxLines: 0, charactersPerLine: 40).isEmpty)
     }
 }
