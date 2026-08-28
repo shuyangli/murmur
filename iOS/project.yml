@@ -1,0 +1,85 @@
+# Generated into Murmur.xcodeproj by `./iOS/generate.sh` (XcodeGen).
+#
+# The project is generated rather than committed because a keyboard extension
+# needs a real Xcode target — SwiftPM cannot build app extensions — and a
+# generated pbxproj stays reviewable in a way a committed one does not.
+name: Murmur
+options:
+  bundleIdPrefix: com.shuyangli
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "26.0"
+  groupSortPosition: top
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: RM2BB7S3BX
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+
+targets:
+  # Sources/MurmurCore verbatim. The brief claims it compiles for iOS
+  # unchanged; building it here is what makes that claim true or false.
+  MurmurKit:
+    type: framework
+    platform: iOS
+    sources:
+      - path: ../Sources/MurmurCore
+        name: MurmurCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shuyangli.murmur.kit
+        PRODUCT_NAME: MurmurKit
+        DEFINES_MODULE: YES
+        GENERATE_INFOPLIST_FILE: YES
+        # The extension links this, so it must stay clear of APIs that are
+        # unavailable to app extensions.
+        APPLICATION_EXTENSION_API_ONLY: YES
+
+  Murmur:
+    type: application
+    platform: iOS
+    sources:
+      - path: Murmur
+      - path: Shared
+    dependencies:
+      - target: MurmurKit
+        embed: true
+      - target: MurmurKeyboard
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shuyangli.murmur
+        PRODUCT_NAME: Murmur
+        INFOPLIST_FILE: Murmur/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+
+  MurmurKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MurmurKeyboard
+      - path: Shared
+    dependencies:
+      - target: MurmurKit
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shuyangli.murmur.keyboard
+        PRODUCT_NAME: MurmurKeyboard
+        INFOPLIST_FILE: MurmurKeyboard/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  Murmur:
+    build:
+      targets:
+        Murmur: all
+    run:
+      config: Debug

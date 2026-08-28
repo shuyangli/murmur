@@ -43,6 +43,38 @@ Start `AVAudioEngine` on touch-down, print the tap's buffer count.
 
 Report the result before building further. Roughly 30 minutes.
 
+## Step 0 result — failed, 28 Aug 2026
+
+Measured on an iPhone 16 Pro, iOS 26.6.1, Xcode 26.6, from the harness in
+`iOS/`. **A keyboard extension cannot record.** The design above does not
+survive it.
+
+The failure is not the one this brief predicted, and the difference matters.
+
+| | Expected | Measured |
+| --- | --- | --- |
+| Where it fails | `setActive` | `AVAudioEngine.start()` |
+| Error | `561145187` (`!rec`) | `2003329396` (`'what'`, `AVAudioSessionErrorCodeUnspecified`) |
+| Fix by `RequestsOpenAccess` + `hasDictationKey` | suspected | both set; session activates; still fails |
+
+With Full Access on and the microphone granted, the extension's session
+activates, resolves `MicrophoneBuiltIn`, and reports 48000 Hz mono — the same
+route and format as the container app. Then the I/O unit refuses to start.
+
+Eight session configurations were tried on each press, from the full option set
+above down to bare `.record` with `.measurement`. All eight failed identically.
+An `AVCaptureSession` against the same microphone also never ran, so this is not
+one API's path — it is a blanket denial of audio input.
+
+**The control is what makes this conclusive.** The same `AudioSpike` code,
+compiled into the container app, passes on the first rung: 21 buffers in 2.15 s,
+peak 0.68. Same device, same minute. The spike is correct; the extension is
+refused.
+
+Do not repeat this measurement without a control run. Three rounds were spent
+narrowing toward an extension-specific cause before checking that the code
+worked anywhere at all.
+
 ## Targets
 
 ```
@@ -160,12 +192,15 @@ onboarding before sending the user to Settings, and make the claim structural:
 
 ## Open questions
 
-- Does `RequestsOpenAccess` + `hasDictationKey` actually clear `!rec`? → Step 0
+- ~~Does `RequestsOpenAccess` + `hasDictationKey` actually clear `!rec`?~~
+  Answered: they do clear `!rec`, and it does not help. The refusal moves to
+  `AVAudioEngine.start()`. See Step 0 result.
 - Can the mic prompt be presented from the extension, or must the container app
   take it first? Assume the container app.
-- Do `.playAndRecord` + `.default` + `.mixWithOthers` +
-  `.bluetoothHighQualityRecording` compose? Each is documented alone; the
-  combination isn't.
+- ~~Do `.playAndRecord` + `.default` + `.mixWithOthers` +
+  `.bluetoothHighQualityRecording` compose?~~ Answered: yes. In the container
+  app the full set activates and starts on the first attempt, 294 ms from
+  `setCategory` to a running engine. Still untested against AirPods.
 - How much latency does high-quality recording add? Enough to want a setting?
 - Is `SpeechTranscriber`'s memory really free from the extension's side, or does
   IPC buffering still count against the cap under load?
@@ -175,4 +210,9 @@ onboarding before sending the user to Settings, and make the claim structural:
 - [WWDC25 §277 — Bring advanced speech-to-text to your app with SpeechAnalyzer](https://developer.apple.com/videos/play/wwdc2025/277/)
 - [`bluetoothHighQualityRecording`](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/bluetoothhighqualityrecording)
 - [Forum: error 561145187 recording from a keyboard extension](https://developer.apple.com/forums/thread/775077)
-- [WhisperBoard](https://github.com/fmachta/WhisperBoard) — captures in-extension today (~20 MB), delegates only transcription
+- [WhisperBoard](https://github.com/fmachta/WhisperBoard) — cited here as
+  proof that in-extension capture works. **Not reproducible.** Its keyboard
+  Info.plist, entitlements, and capture code were replicated exactly, down to
+  `.playAndRecord`/`.default`/`[.defaultToSpeaker]` and an engine built before
+  session configuration; it fails like everything else on iOS 26.6.1. Either
+  iOS 26 changed this, or the claim was never verified on a current OS

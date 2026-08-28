@@ -2,3 +2,5 @@
 dist/
 *.iconset/
 .DS_Store
+iOS/Murmur.xcodeproj/
+iOS/build/
