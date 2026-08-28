@@ -82,6 +82,38 @@ private struct GeneralSettingsTab: View {
             }
 
             Section {
+                Toggle("Open Murmur at login", isOn: Binding(
+                    get: { LoginItem.isEnabled },
+                    set: { enabled in
+                        if LoginItem.setEnabled(enabled) {
+                            preferences.launchAtLogin = enabled
+                        }
+                    }
+                ))
+                if LoginItem.isBlockedByUser {
+                    Text("macOS is holding this off until you allow Murmur under Login Items in System Settings.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                LabeledContent("Ignore presses shorter than:") {
+                    Stepper(
+                        "\(preferences.minimumRecordingSeconds, format: .number.precision(.fractionLength(2)))s",
+                        value: Binding(
+                            get: { preferences.minimumRecordingSeconds },
+                            set: { preferences.minimumRecordingSeconds = $0 }
+                        ),
+                        in: 0.1...2.0,
+                        step: 0.05
+                    )
+                }
+                Text("Stops a stray tap on the trigger key from pasting a stray word.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text("Behaviour")
+            }
+
+            Section {
                 Stepper(
                     "Keep the last \(preferences.historyLimit) dictations",
                     value: Binding(

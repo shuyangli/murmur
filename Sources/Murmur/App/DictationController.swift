@@ -117,6 +117,14 @@ final class DictationController: ObservableObject {
     private func beginRecording() {
         guard state != .recording else { return }
 
+        // The engine holds one utterance at a time, so starting a new one
+        // while the previous flush is still in flight would reset the decoder
+        // out from under it and lose the transcript.
+        guard state != .transcribing else {
+            Log.asr.info("Ignored a key press that arrived during the previous flush.")
+            return
+        }
+
         guard let engine, enginePreparation.isReady else {
             showNotice(enginePreparation.isBusy
                 ? "Still loading the model…"
