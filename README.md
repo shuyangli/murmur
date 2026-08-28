@@ -32,9 +32,13 @@ listed with **Grant** buttons under **Settings › Permissions**:
 After granting Input Monitoring, quit and reopen Murmur — macOS only re-reads
 that grant at launch.
 
-The first dictation also downloads the speech model (~700 MB). The menu bar
-panel shows progress. Until it finishes you can switch to the **Apple Speech**
-engine in Settings, which uses the recogniser macOS already ships.
+The first dictation also downloads the speech model (~700 MB). Press the trigger
+key and the on-screen readout tells you how far along it is. Until it finishes
+you can switch to the **Apple Speech** engine in Settings, which uses the
+recogniser macOS already ships.
+
+To have Murmur start with your Mac, turn on **Open Murmur at login** under
+**Settings › General › Behaviour**.
 
 ### If you use the Globe key
 
@@ -141,6 +145,22 @@ Sources/Murmur/
 ├── Support/        Preferences, permissions, login item, logging
 └── UI/             Menu bar, history window, settings, recording overlay
 ```
+
+## Where the app talks to you
+
+The status item is a plain `NSMenu` — recent dictations, history, settings,
+quit. It carries no status or progress, because nobody watches the menu bar
+while they wait for something.
+
+Everything time-sensitive goes to the floating readout above the Dock instead:
+the level meter while you speak, "Transcribing", and any reason a press did not
+work ("Downloading the speech model — 62%", "Microphone access is required").
+That panel is non-activating, so it never takes keyboard focus from the app you
+are dictating into.
+
+The one exception lives in the menu: if Input Monitoring is off, the trigger key
+is never seen at all, so there is no press that could raise the readout. That
+case gets a menu item.
 
 ## Known limits
 
