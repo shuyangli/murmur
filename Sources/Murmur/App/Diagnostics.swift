@@ -55,6 +55,8 @@ enum Diagnostics {
         }
 
         print("")
+        print("Open at login:    \(loginItemDescription)")
+
         let historyURL = AppPaths.supportDirectory.appendingPathComponent("history.json")
         let entryCount = (try? Data(contentsOf: historyURL))
             .flatMap { try? JSONDecoder.murmur.decode([HistoryEntry].self, from: $0) }?.count ?? 0
@@ -62,6 +64,12 @@ enum Diagnostics {
         print("Saved entries:    \(entryCount)")
 
         exit(0)
+    }
+
+    private static var loginItemDescription: String {
+        if LoginItem.isEnabled { return "on" }
+        if LoginItem.isBlockedByUser { return "blocked — allow Murmur under Login Items in System Settings" }
+        return "off"
     }
 
     private static func report(_ name: String, _ ok: Bool, _ detail: String) {

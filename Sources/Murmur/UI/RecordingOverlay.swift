@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// A small floating readout that appears while dictating.
+/// The floating readout that appears while dictating, and the only place the
+/// app tells the user anything in the moment.
 ///
 /// It lives in a non-activating panel: the app being dictated into must keep
 /// keyboard focus, otherwise the ⌘V we synthesise afterwards lands in the
@@ -15,7 +16,7 @@ final class RecordingOverlay {
     /// window at that rate makes it flicker.
     private var isVisible = false
 
-    private static let size = CGSize(width: 188, height: 56)
+    private static let size = CGSize(width: 300, height: 60)
     /// Distance from the bottom of the active screen's visible frame.
     private static let bottomInset: CGFloat = 96
 
@@ -24,14 +25,22 @@ final class RecordingOverlay {
 
         switch state {
         case .recording:
+            model.kind = .listening
             model.caption = "Listening"
-            model.isBusy = false
             show()
         case .transcribing:
+            model.kind = .working
             model.caption = "Transcribing"
-            model.isBusy = true
             show()
-        case .idle, .notice, .failure:
+        case .notice(let message):
+            model.kind = .message(isProblem: false)
+            model.caption = message
+            show()
+        case .failure(let message):
+            model.kind = .message(isProblem: true)
+            model.caption = message
+            show()
+        case .idle:
             hide()
         }
     }
@@ -85,11 +94,17 @@ final class RecordingOverlay {
     }
 }
 
+enum OverlayKind: Equatable {
+    case listening
+    case working
+    case message(isProblem: Bool)
+}
+
 @MainActor
 private final class OverlayModel: ObservableObject {
     @Published var level: Float = 0
     @Published var caption: String = "Listening"
-    @Published var isBusy: Bool = false
+    @Published var kind: OverlayKind = .listening
 }
 
 private struct OverlayView: View {
@@ -99,16 +114,20 @@ private struct OverlayView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: model.isBusy ? "ellipsis" : "mic.fill")
+            Image(systemName: symbolName)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(model.isBusy ? Color.secondary : Color.red)
+                .foregroundStyle(symbolColor)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(model.caption)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                meter
+                    .foregroundStyle(isMessage ? .primary : .secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !isMessage {
+                    meter
+                }
             }
             Spacer(minLength: 0)
         }
@@ -119,6 +138,27 @@ private struct OverlayView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08))
         )
+    }
+
+    private var isMessage: Bool {
+        if case .message = model.kind { return true }
+        return false
+    }
+
+    private var symbolName: String {
+        switch model.kind {
+        case .listening: return "mic.fill"
+        case .working: return "ellipsis"
+        case .message(let isProblem): return isProblem ? "exclamationmark.triangle.fill" : "info.circle.fill"
+        }
+    }
+
+    private var symbolColor: Color {
+        switch model.kind {
+        case .listening: return .red
+        case .working: return .secondary
+        case .message(let isProblem): return isProblem ? .orange : .secondary
+        }
     }
 
     private var meter: some View {
@@ -139,7 +179,8 @@ private struct OverlayView: View {
     }
 
     private func isLit(_ index: Int) -> Bool {
-        model.isBusy ? false : Double(index) / Double(Self.barCount) < normalized
+        guard case .listening = model.kind else { return false }
+        return Double(index) / Double(Self.barCount) < normalized
     }
 
     private func height(for index: Int) -> CGFloat {

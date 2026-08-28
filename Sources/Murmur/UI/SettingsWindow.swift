@@ -84,11 +84,7 @@ private struct GeneralSettingsTab: View {
             Section {
                 Toggle("Open Murmur at login", isOn: Binding(
                     get: { LoginItem.isEnabled },
-                    set: { enabled in
-                        if LoginItem.setEnabled(enabled) {
-                            preferences.launchAtLogin = enabled
-                        }
-                    }
+                    set: { LoginItem.setEnabled($0) }
                 ))
                 if LoginItem.isBlockedByUser {
                     Text("macOS is holding this off until you allow Murmur under Login Items in System Settings.")

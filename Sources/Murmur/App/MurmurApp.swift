@@ -9,14 +9,13 @@ struct MurmurApp: App {
     @ObservedObject private var preferences = Preferences.shared
 
     var body: some Scene {
+        // Default .menu style: a real NSMenu, rather than the floating panel
+        // that .window style draws.
         MenuBarExtra {
-            MenuBarPanel()
-                .environmentObject(controller)
-                .environmentObject(preferences)
+            MenuBarMenu()
         } label: {
             MenuBarIcon(state: controller.state)
         }
-        .menuBarExtraStyle(.window)
 
         Window("Dictation History", id: WindowID.history) {
             HistoryWindow()

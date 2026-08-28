@@ -33,7 +33,6 @@ final class Preferences: ObservableObject {
         static let playFeedbackSounds = "playFeedbackSounds"
         static let restoreClipboard = "restoreClipboard"
         static let minimumRecordingSeconds = "minimumRecordingSeconds"
-        static let launchAtLogin = "launchAtLogin"
         static let trimTrailingWhitespace = "trimTrailingWhitespace"
     }
 
@@ -55,7 +54,6 @@ final class Preferences: ObservableObject {
             Key.playFeedbackSounds: true,
             Key.restoreClipboard: true,
             Key.minimumRecordingSeconds: Self.defaultMinimumRecordingSeconds,
-            Key.launchAtLogin: false,
             Key.trimTrailingWhitespace: true,
         ])
     }
@@ -112,11 +110,6 @@ final class Preferences: ObservableObject {
             return stored > 0 ? stored : Self.defaultMinimumRecordingSeconds
         }
         set { set(newValue, forKey: Key.minimumRecordingSeconds) }
-    }
-
-    var launchAtLogin: Bool {
-        get { defaults.bool(forKey: Key.launchAtLogin) }
-        set { set(newValue, forKey: Key.launchAtLogin) }
     }
 
     var trimTrailingWhitespace: Bool {

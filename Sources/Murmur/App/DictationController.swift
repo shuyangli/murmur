@@ -41,8 +41,8 @@ final class DictationController: ObservableObject {
     private var levelTimer: Timer?
     private var noticeResetTask: Task<Void, Never>?
 
-    /// How long a transient message stays in the menu bar before clearing.
-    private static let noticeDuration = Duration.seconds(4)
+    /// How long a transient message stays on screen before clearing.
+    private static let noticeDuration = Duration.seconds(2.5)
     private static let levelPollInterval: TimeInterval = 1.0 / 30.0
 
     init(preferences: Preferences = .shared) {
@@ -126,10 +126,20 @@ final class DictationController: ObservableObject {
         }
 
         guard let engine, enginePreparation.isReady else {
-            showNotice(enginePreparation.isBusy
-                ? "Still loading the model…"
-                : "The model is not loaded yet.")
-            if !enginePreparation.isBusy { Task { await prepareEngine() } }
+            // Pressing the key is the only moment the user cares how far along
+            // the download is, so the progress is reported here rather than
+            // anywhere they would have to go looking for it.
+            switch enginePreparation {
+            case .downloading(let fraction, _):
+                showNotice("Downloading the speech model — \(Int(fraction * 100))%")
+            case .loading:
+                showNotice("Loading the speech model…")
+            case .failed(let message):
+                showFailure(message)
+            case .idle, .ready:
+                showNotice("Getting the speech model ready…")
+                Task { await prepareEngine() }
+            }
             return
         }
 
