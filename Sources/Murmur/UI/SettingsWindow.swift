@@ -7,6 +7,8 @@ struct SettingsWindow: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             ModelSettingsTab()
                 .tabItem { Label("Model", systemImage: "waveform") }
+            TextSettingsTab()
+                .tabItem { Label("Text", systemImage: "text.badge.checkmark") }
             PermissionsSettingsTab()
                 .tabItem { Label("Permissions", systemImage: "lock.shield") }
         }
@@ -126,6 +128,68 @@ private struct GeneralSettingsTab: View {
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("History")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct TextSettingsTab: View {
+    @EnvironmentObject private var preferences: Preferences
+
+    private var languageModelAvailable: Bool {
+        guard #available(macOS 26.0, *) else { return false }
+        return TextPolisher.isAvailable
+    }
+
+    private var languageModelProblem: String? {
+        guard #available(macOS 26.0, *) else {
+            return "Requires macOS 26 or later."
+        }
+        return TextPolisher.unavailabilityReason
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Remove “um”, “uh”, and stutters", isOn: Binding(
+                    get: { preferences.removeFillers },
+                    set: { preferences.removeFillers = $0 }
+                ))
+                Text("A fixed word list, so it runs instantly and can never change what you said. “Ah” and “oh” are kept, since they usually mean something.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Also remove “you know”, “I mean”, and filler “like”", isOn: Binding(
+                    get: { preferences.removeDiscourseMarkers },
+                    set: { preferences.removeDiscourseMarkers = $0 }
+                ))
+                .disabled(!preferences.removeFillers)
+                Text("Only where they read as padding. “I like it” and “looks like rain” are left alone.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Cleanup")
+            }
+
+            Section {
+                Toggle("Rewrite with Apple Intelligence", isOn: Binding(
+                    get: { preferences.polishWithLanguageModel },
+                    set: { preferences.polishWithLanguageModel = $0 }
+                ))
+                .disabled(!languageModelAvailable)
+
+                if let problem = languageModelProblem {
+                    Text(problem)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Repairs false starts, abandoned sentences, and grammar as well as fillers. Runs entirely on this Mac, but adds a noticeable pause after you let go of the key. If the rewrite looks wrong, Murmur keeps your original words instead.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } header: {
+                Text("Rewriting")
             }
         }
         .formStyle(.grouped)

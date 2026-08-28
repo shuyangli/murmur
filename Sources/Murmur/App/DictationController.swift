@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import MurmurCore
 
 enum DictationState: Equatable {
     case idle
@@ -30,6 +31,8 @@ final class DictationController: ObservableObject {
 
     private var engine: (any TranscriptionEngine)?
     private var loadedEngineID: String?
+    /// Built on first use; most users never turn the polish pass on.
+    private var polisherStorage: AnyObject?
 
     /// Feeds captured audio into the engine in order, without blocking the
     /// audio thread on the engine actor.
@@ -226,9 +229,7 @@ final class DictationController: ObservableObject {
             do {
                 guard let engine else { throw TranscriptionEngineError.notReady }
                 let raw = try await engine.finishUtterance()
-                let text = preferences.trimTrailingWhitespace
-                    ? raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    : raw
+                let text = await cleanUp(raw)
                 let elapsed = Date().timeIntervalSince(startedAt)
 
                 guard !text.isEmpty else {
@@ -259,6 +260,37 @@ final class DictationController: ObservableObject {
                 playSound(.failure)
             }
         }
+    }
+
+    @available(macOS 26.0, *)
+    private var polisher: TextPolisher? {
+        get { polisherStorage as? TextPolisher }
+        set { polisherStorage = newValue }
+    }
+
+    /// Runs the transcript through the cleanup passes the user has enabled.
+    ///
+    /// The deterministic filter always runs first so the language model, if it
+    /// is on at all, gets tidier input and has less to do.
+    private func cleanUp(_ raw: String) async -> String {
+        var text = preferences.trimTrailingWhitespace
+            ? raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            : raw
+
+        text = FillerFilter.clean(
+            text,
+            options: FillerFilter.Options(
+                removeFillers: preferences.removeFillers,
+                removeDiscourseMarkers: preferences.removeDiscourseMarkers
+            )
+        )
+
+        guard preferences.polishWithLanguageModel, !text.isEmpty else { return text }
+        guard #available(macOS 26.0, *) else { return text }
+
+        let polisher = self.polisher ?? TextPolisher()
+        self.polisher = polisher
+        return await polisher.polish(text)
     }
 
     private func discardUtterance() {

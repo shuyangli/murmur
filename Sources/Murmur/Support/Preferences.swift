@@ -34,6 +34,9 @@ final class Preferences: ObservableObject {
         static let restoreClipboard = "restoreClipboard"
         static let minimumRecordingSeconds = "minimumRecordingSeconds"
         static let trimTrailingWhitespace = "trimTrailingWhitespace"
+        static let removeFillers = "removeFillers"
+        static let removeDiscourseMarkers = "removeDiscourseMarkers"
+        static let polishWithLanguageModel = "polishWithLanguageModel"
     }
 
     /// Below this, a key press is treated as a stray tap rather than dictation.
@@ -55,6 +58,9 @@ final class Preferences: ObservableObject {
             Key.restoreClipboard: true,
             Key.minimumRecordingSeconds: Self.defaultMinimumRecordingSeconds,
             Key.trimTrailingWhitespace: true,
+            Key.removeFillers: true,
+            Key.removeDiscourseMarkers: false,
+            Key.polishWithLanguageModel: false,
         ])
     }
 
@@ -115,5 +121,24 @@ final class Preferences: ObservableObject {
     var trimTrailingWhitespace: Bool {
         get { defaults.bool(forKey: Key.trimTrailingWhitespace) }
         set { set(newValue, forKey: Key.trimTrailingWhitespace) }
+    }
+
+    /// Strip "um", "uh" and friends. Costs nothing measurable, so on by default.
+    var removeFillers: Bool {
+        get { defaults.bool(forKey: Key.removeFillers) }
+        set { set(newValue, forKey: Key.removeFillers) }
+    }
+
+    /// Also strip "you know", "I mean", and parenthetical "like".
+    var removeDiscourseMarkers: Bool {
+        get { defaults.bool(forKey: Key.removeDiscourseMarkers) }
+        set { set(newValue, forKey: Key.removeDiscourseMarkers) }
+    }
+
+    /// Rewrite the transcript with Apple's on-device model. Off by default:
+    /// it adds latency exactly where the user is waiting.
+    var polishWithLanguageModel: Bool {
+        get { defaults.bool(forKey: Key.polishWithLanguageModel) }
+        set { set(newValue, forKey: Key.polishWithLanguageModel) }
     }
 }

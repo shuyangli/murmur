@@ -135,16 +135,60 @@ apart from a permissions problem.
 ## Layout
 
 ```
+Sources/MurmurCore/   Pure text transforms, unit tested (filler filter, rewrite validator)
 Sources/Murmur/
 ├── App/            DictationController — the press-to-talk state machine
 ├── Hotkey/         CGEventTap watching for the trigger key
 ├── Audio/          AVAudioEngine capture, resampled to 16 kHz mono
-├── Transcription/  The engine protocol and its three implementations
+├── Transcription/  The engine protocol, its three implementations, the rewrite pass
 ├── Output/         Pasteboard + synthesised ⌘V
 ├── History/        JSON-backed log
 ├── Support/        Preferences, permissions, login item, logging
 └── UI/             Menu bar, history window, settings, recording overlay
 ```
+
+`MurmurCore` exists so the text logic can be tested without launching an app:
+
+```bash
+swift test
+```
+
+## Cleaning up the text
+
+The ASR models transcribe what you said, fillers included — neither Nemotron
+nor Parakeet has a rewriting step, and Nemotron's habit of occasionally
+swallowing an "um" is incidental, not a feature to rely on. Cleanup is a
+separate stage, configured under **Settings › Text**.
+
+**The filler filter** runs on every dictation and is on by default. It is a
+fixed word list plus punctuation repair — no model, no judgement, unmeasurable
+cost. It strips "um / uh / er / hmm", collapses stutters ("I I think" → "I
+think"), and mends the pause left behind, so "thinking, uh, that" becomes
+"thinking that" rather than "thinking, that". It deliberately keeps "ah" and
+"oh", which are usually sincere, and it will not collapse "had had" or "that
+that". An optional stricter mode also removes "you know", "I mean", and filler
+"like" — but only where they are parenthetical, so "I like it" and "looks like
+rain" survive. See [`FillerFilter.swift`](Sources/MurmurCore/FillerFilter.swift).
+
+**The rewrite pass** is off by default. It sends the transcript through Apple's
+on-device model (`FoundationModels`, nothing downloaded, nothing leaving the
+Mac) to also repair false starts, abandoned sentences, and grammar:
+
+> um so the the thing is I I wanted to to ask about the deployment uh schedule for next week
+> → So the thing is, I wanted to ask about the deployment schedule for next week.
+
+It costs roughly **0.7–1.5 s** after you release the key, which is why it is
+opt-in — the fast path stays at ~70 ms.
+
+Two things make it safe enough to ship. It uses **guided generation** rather
+than free-form text: asked for prose, the model treats your dictation as a
+message addressed to it, and on real transcripts it refused one outright,
+prefixed another with "Sure, I can help with that", and answered a third
+instead of editing it. Constrained to fill in a single `cleaned` field, all
+three came back correctly rewritten. And every result is then checked by
+[`RewriteValidator`](Sources/MurmurCore/RewriteValidator.swift), which rejects
+output that grew too much or dropped too many of your words — the signature of
+a refusal or an answer. Anything rejected falls back to your original words.
 
 ## Where the app talks to you
 
