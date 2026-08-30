@@ -49,6 +49,7 @@ actor NemotronEngine: TranscriptionEngine {
         preparation = .downloading(fraction: 0, detail: "Contacting model host")
         progress(preparation)
 
+        let startedAt = Date()
         let directory = try await StreamingNemotronMultilingualAsrManager.downloadVariant(
             languageCode: language,
             chunkMs: Preferences.shared.nemotronChunkMs,
@@ -59,10 +60,18 @@ actor NemotronEngine: TranscriptionEngine {
 
         preparation = .loading
         progress(preparation)
+        let filesReadyAt = Date()
 
+        // Loading takes about 0.2 s when CoreML's Neural Engine compile cache
+        // is warm and about 20 s when it is cold. The cache sits in
+        // ~/Library/Caches/<bundle id>/com.apple.e5rt.e5bundlecache keyed by
+        // OS build, so the compile is paid once per download and once after
+        // every macOS update. Nothing here can shorten it; the timings below
+        // make it recognisable in Console.
         let manager = StreamingNemotronMultilingualAsrManager()
         try await manager.loadModels(from: directory)
         await manager.setLanguage(language)
+        let loadedAt = Date()
 
         if let partialHandler {
             await manager.setPartialCallback { text in
@@ -74,7 +83,9 @@ actor NemotronEngine: TranscriptionEngine {
         self.activeLanguage = language
         preparation = .ready
         progress(preparation)
-        Log.asr.info("Nemotron ready (\(language, privacy: .public))")
+        let fileSeconds = filesReadyAt.timeIntervalSince(startedAt)
+        let loadSeconds = loadedAt.timeIntervalSince(filesReadyAt)
+        Log.asr.info("Nemotron ready (\(language, privacy: .public)): files \(fileSeconds, format: .fixed(precision: 2))s, CoreML load \(loadSeconds, format: .fixed(precision: 2))s")
     }
 
     func setPartialHandler(_ handler: (@Sendable (String) -> Void)?) async {

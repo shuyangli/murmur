@@ -37,6 +37,11 @@ key and the on-screen readout tells you how far along it is. Until it finishes
 you can switch to the **Apple Speech** engine in Settings, which uses the
 recogniser macOS already ships.
 
+Once downloaded, the model takes about 20 seconds to load the first time, and
+again after every macOS update: CoreML compiles it for the Neural Engine and
+caches the result per OS build. The readout says so while it happens. Every
+other launch loads the model in a fraction of a second.
+
 To have Murmur start with your Mac, turn on **Open Murmur at login** under
 **Settings › General › Behaviour**.
 

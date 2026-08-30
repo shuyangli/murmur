@@ -45,10 +45,20 @@ final class DictationController: ObservableObject {
     private var targetBundleID: String?
     private var levelTimer: Timer?
     private var noticeResetTask: Task<Void, Never>?
+    private var slowPreparationTask: Task<Void, Never>?
 
     /// How long a transient message stays on screen before clearing.
     private static let noticeDuration = Duration.seconds(2.5)
     private static let levelPollInterval: TimeInterval = 1.0 / 30.0
+
+    /// A warm load finishes in a fraction of a second, so anything longer
+    /// means CoreML is compiling the model for the Neural Engine. That happens
+    /// once after a download and once after every macOS update, takes about
+    /// 20 seconds, and reports no progress, so the readout explains it instead.
+    private static let slowPreparationThreshold = Duration.seconds(1.5)
+    private static let preparingMessage =
+        "Compiling the speech model for the Neural Engine — about 20 seconds, once per download or macOS update."
+    private static let preparedMessage = "Speech model ready."
 
     init(preferences: Preferences = .shared) {
         self.preferences = preferences
@@ -113,15 +123,44 @@ final class DictationController: ObservableObject {
 
         do {
             try await engine.prepare { [weak self] progress in
-                Task { @MainActor in self?.enginePreparation = progress }
+                Task { @MainActor in self?.receivePreparation(progress) }
             }
             await engine.setPartialHandler { [weak self] text in
                 Task { @MainActor in self?.receivePartial(text) }
             }
         } catch {
-            enginePreparation = .failed(error.localizedDescription)
+            receivePreparation(.failed(error.localizedDescription))
             Log.asr.error("Engine prepare failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func receivePreparation(_ progress: EnginePreparation) {
+        enginePreparation = progress
+
+        switch progress {
+        case .loading:
+            guard slowPreparationTask == nil else { return }
+            slowPreparationTask = Task {
+                try? await Task.sleep(for: Self.slowPreparationThreshold)
+                guard !Task.isCancelled, enginePreparation == .loading else { return }
+                // Only speak up over an empty screen: a failure already
+                // showing, such as the Input Monitoring warning, matters more.
+                if state == .idle { showNotice(Self.preparingMessage, autoDismiss: false) }
+            }
+        case .ready:
+            cancelSlowPreparationNotice()
+            if state == .notice(Self.preparingMessage) { showNotice(Self.preparedMessage) }
+        case .failed(let message):
+            cancelSlowPreparationNotice()
+            if state == .notice(Self.preparingMessage) { showFailure(message) }
+        case .idle, .downloading:
+            cancelSlowPreparationNotice()
+        }
+    }
+
+    private func cancelSlowPreparationNotice() {
+        slowPreparationTask?.cancel()
+        slowPreparationTask = nil
     }
 
     // MARK: - Hotkey handling
@@ -153,7 +192,7 @@ final class DictationController: ObservableObject {
             case .downloading(let fraction, _):
                 showNotice("Downloading the speech model — \(Int(fraction * 100))%")
             case .loading:
-                showNotice("Loading the speech model…")
+                showNotice(Self.preparingMessage, autoDismiss: false)
             case .failed(let message):
                 showFailure(message)
             case .idle, .ready:
@@ -354,9 +393,17 @@ final class DictationController: ObservableObject {
 
     // MARK: - Feedback
 
-    private func showNotice(_ message: String) {
+    /// A notice that does not dismiss itself stays until the next state change,
+    /// which is what a wait with a known end wants: it clears the moment the
+    /// model is ready rather than on a timer.
+    private func showNotice(_ message: String, autoDismiss: Bool = true) {
         state = .notice(message)
-        scheduleStateReset()
+        if autoDismiss {
+            scheduleStateReset()
+        } else {
+            noticeResetTask?.cancel()
+            noticeResetTask = nil
+        }
     }
 
     private func showFailure(_ message: String) {

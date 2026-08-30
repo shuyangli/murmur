@@ -47,6 +47,7 @@ actor ParakeetEngine: TranscriptionEngine {
         preparation = .downloading(fraction: 0, detail: "Contacting model host")
         progress(preparation)
 
+        let startedAt = Date()
         let models = try await AsrModels.downloadAndLoad(
             version: .v3,
             progressHandler: { update in
@@ -63,7 +64,7 @@ actor ParakeetEngine: TranscriptionEngine {
         self.manager = manager
         preparation = .ready
         progress(preparation)
-        Log.asr.info("Parakeet ready")
+        Log.asr.info("Parakeet ready in \(Date().timeIntervalSince(startedAt), format: .fixed(precision: 2))s")
     }
 
     func beginUtterance(language: String) async throws {
